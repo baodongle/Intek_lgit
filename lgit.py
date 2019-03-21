@@ -2,7 +2,9 @@
 """Code a lightweight version of git."""
 from argparse import ArgumentParser
 
-from commands import execute_lgit_init, execute_lgit_add
+from commands import (execute_lgit_init, execute_lgit_add, execute_lgit_rm,
+                      config_lgit, execute_lgit_commit, display_lgit_status,
+                      list_lgit_files, show_lgit_log)
 from functions import check_command_error
 
 
@@ -22,11 +24,11 @@ def create_argparser():
 
     # Create the parser for the "rm" command
     rm_parser = subparsers.add_parser('rm')
-    rm_parser.add_argument('files', type=str, nargs='?')
+    rm_parser.add_argument('files', type=str, nargs='+')
 
     # Create the parser for the "config" command
     config_parser = subparsers.add_parser('config')
-    config_parser.add_argument('--author', nargs=1, required=True)
+    config_parser.add_argument('--author', type=str, nargs=1, required=True)
 
     # Create the parser for the "commit" command
     commit_parser = subparsers.add_parser('commit')
@@ -51,16 +53,15 @@ def main():
     args = parser.parse_args()
     if args.command == 'init':
         execute_lgit_init()
-    else:
-        check_command_error(args.command)
+    elif not check_command_error(args.command):
         switcher = {
             "add": execute_lgit_add,
-            # "rm": execute_lgit_remove,
-            # "config": config_lgit,
-            # "commit": execute_lgit_commit,
-            # "status": display_lgit_status,
-            # "ls-files": list_lgit_files,
-            # "log": show_lgit_log
+            "rm": execute_lgit_rm,
+            "config": config_lgit,
+            "commit": execute_lgit_commit,
+            "status": display_lgit_status,
+            "ls-files": list_lgit_files,
+            "log": show_lgit_log
         }
         # Get the function from switcher dictionary:
         switcher[args.command](args)
