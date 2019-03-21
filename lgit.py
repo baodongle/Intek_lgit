@@ -2,7 +2,8 @@
 """Code a lightweight version of git."""
 from argparse import ArgumentParser
 
-from commands import execute_lgit_init
+from commands import execute_lgit_init, execute_lgit_add
+from functions import check_command_error
 
 
 def create_argparser():
@@ -10,20 +11,18 @@ def create_argparser():
     # Create the top-level parser with an useful help messages:
     parser = ArgumentParser(usage='./lgit.py <command> [<args>]')
     subparsers = parser.add_subparsers(
-        title='These are common lgit commands used',
-        dest='command')
+        title='These are common lgit commands used', dest='command')
 
     # Create the parser for the "init" command
-    init_parser = subparsers.add_parser('init')
-    init_parser.add_argument('directory', type=str, nargs='?')
+    subparsers.add_parser('init')
 
     # Create the parser for the "add" command
     add_parser = subparsers.add_parser('add')
-    add_parser.add_argument('file', type=str, nargs='?')
+    add_parser.add_argument('files', type=str, nargs='+')
 
     # Create the parser for the "rm" command
     rm_parser = subparsers.add_parser('rm')
-    rm_parser.add_argument('file', type=str, nargs='?')
+    rm_parser.add_argument('files', type=str, nargs='?')
 
     # Create the parser for the "config" command
     config_parser = subparsers.add_parser('config')
@@ -50,19 +49,21 @@ def main():
     parser = create_argparser()
     # Parse arguments:
     args = parser.parse_args()
-
-    switcher = {
-        "init": execute_lgit_init,
-        "add": execute_lgit_add,
-        "rm": execute_lgit_remove,
-        "config": config_lgit,
-        "commit": execute_lgit_commit,
-        "status": display_lgit_status,
-        "ls-files": list_lgit_files,
-        "log": show_lgit_log
-    }
-    # Get the function from switcher dictionary:
-    switcher[args.command](args)
+    if args.command == 'init':
+        execute_lgit_init()
+    else:
+        check_command_error(args.command)
+        switcher = {
+            "add": execute_lgit_add,
+            # "rm": execute_lgit_remove,
+            # "config": config_lgit,
+            # "commit": execute_lgit_commit,
+            # "status": display_lgit_status,
+            # "ls-files": list_lgit_files,
+            # "log": show_lgit_log
+        }
+        # Get the function from switcher dictionary:
+        switcher[args.command](args)
 
 
 if __name__ == "__main__":
