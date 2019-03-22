@@ -28,11 +28,11 @@ def create_argparser():
 
     # Create the parser for the "config" command
     config_parser = subparsers.add_parser('config')
-    config_parser.add_argument('--author', type=str, nargs=1, required=True)
+    config_parser.add_argument('--author', type=str, nargs='?', required=True)
 
     # Create the parser for the "commit" command
     commit_parser = subparsers.add_parser('commit')
-    commit_parser.add_argument('-m', dest='<msg>', nargs=1, required=True)
+    commit_parser.add_argument('-m', type=str, nargs='?', required=True)
 
     # Create the parser for the "status" command
     subparsers.add_parser('status')

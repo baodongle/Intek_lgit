@@ -1,9 +1,10 @@
 """Present commands in lgit program."""
-from os import environ, _exit, unlink, rmdir
+from os import environ, _exit, unlink
 from os.path import exists, isfile, isdir, abspath
 
-from functions import (make_directory, create_file, copy_file_to_another,
-                       format_mtime, get_files_in_dir, hashing_sha1_file)
+from functions import (make_directory, create_file, read_file,
+                       copy_file_to_another, format_mtime, get_files_in_dir,
+                       hashing_sha1_file, get_timestamp_of_current_time)
 
 
 def execute_lgit_init():
@@ -50,9 +51,8 @@ def execute_lgit_add(args):
     def _update_index(file, hash_value):
         """Update the file information in the index file."""
         timestamp = format_mtime(file)
-        with open('.lgit/index', 'br+') as index:
+        with open('.lgit/index', 'rb+') as index:
             content_index = index.readlines()
-            print(content_index)
             index.seek(0)
             added = False
             for line in content_index:
@@ -115,17 +115,16 @@ def execute_lgit_rm(args):
             _exit(1)
         if exists(file):
             # If the file exists in the index file:
-            hash_value = hashing_sha1_file(file)
-            directory = '.lgit/object/' + hash_value[:2]
-            file_data = '.lgit/object/' + hash_value[2:]
+            # hash_value = hashing_sha1_file(file)
+            # directory = '.lgit/object/' + hash_value[:2]
+            # file_data = '.lgit/object/' + hash_value[2:]
             if _remove_file_index(file):
                 unlink(file)
-                unlink(file_data)
-                try:
-                    rmdir(directory)
-                except OSError:
-                    pass
-
+                # unlink(file_data)
+                # try:
+                #     rmdir(directory)
+                # except OSError:
+                #     pass
             else:
                 print("fatal: pathspec '%s' did not match any files" % file)
                 _exit(1)
@@ -142,7 +141,40 @@ def config_lgit(args):
 
 def execute_lgit_commit(args):
     """Create a commit with the changes currently staged."""
-    pass
+    timestamp_now, ms_timestamp_now = get_timestamp_of_current_time()
+
+    def _create_commit_object(message):
+        """Create the commit object when commit the changes."""
+        # Get the author name for the commits:
+        author = read_file('.lgit/config').strip('\n')
+        # If the config file is empty:
+        if not author:
+            print('''***Please tell me who you are.
+            
+            Run
+            
+            ./lgit.py config --author "Author Name"
+            
+            to set a user for authoring the commits.''')
+
+        with open('.lgit/commits/%s' % ms_timestamp_now, 'w') as commit:
+            # Write file in the commits directory:
+            commit.write('%s\n%s\n\n%s\n\n' % (author, timestamp_now, message))
+
+    def _update_index_and_snapshot():
+        with open('.lgit/index', 'rb+') as index, open('.lgit/snapshots/%s' % ms_timestamp_now, 'ab+') as snapshot:
+            content_index = index.readlines()
+            index.seek(0)
+            for line in content_index:
+                hash_value = line[56:96]
+                file_path = line[138:]
+                snapshot.write(hash_value + b' ' + file_path)
+                index.seek(97, 1)
+                index.write(hash_value)
+                index.seek(len(line) - 137, 1)
+
+    _create_commit_object(args.m)
+    _update_index_and_snapshot()
 
 
 def display_lgit_status(args):

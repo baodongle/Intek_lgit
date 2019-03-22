@@ -18,6 +18,20 @@ def create_file(file_path):
             pass
 
 
+def read_file(file_name):
+    """ Read contents of file.
+
+    Args:
+        file_name: The file need to be read contents.
+
+    Returns: The contents of file.
+
+    """
+    with open(file_name, 'r') as file:
+        content = file.read()
+    return content
+
+
 def make_directory(dir_path):
     """Create a directory if it doesn't exist.
 
@@ -82,6 +96,20 @@ def format_mtime(path_file):
     """
     timestamp = datetime.fromtimestamp(getmtime(path_file))
     return timestamp.strftime('%Y%m%d%H%M%S')
+
+
+def get_timestamp_of_current_time():
+    """Get the timestamp of the current time.
+
+    Returns:
+        timestamp: The timestamp represent year, month, day, hour, minute and second..
+        ms_timestamp: The timestamp to milliseconds.
+
+    """
+    current_time = datetime.now()
+    timestamp = current_time.strftime('%Y%m%d%H%M%S')
+    ms_timestamp = current_time.strftime('%Y%m%d%H%M%S.%f')
+    return timestamp, ms_timestamp
 
 
 def check_command_error(command):
