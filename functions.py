@@ -2,7 +2,7 @@
 from datetime import datetime
 from hashlib import sha1
 from os import getcwd, makedirs, walk
-from os.path import exists, isdir, isfile, abspath, dirname, join, getmtime, relpath
+from os.path import exists, isdir, isfile, dirname, join, getmtime, relpath
 
 BUF_SIZE = 65536  # Let's read stuff in 64Kb chunks!
 
@@ -37,6 +37,7 @@ def make_directory(dir_path):
 
     Args:
         dir_path: The directory to be created.
+
     """
     try:
         makedirs(dir_path)
@@ -44,27 +45,22 @@ def make_directory(dir_path):
         pass
 
 
-def check_lgit_exist():
-    """Check if the directory (or its parent) has a .lgit directory."""
+def find_lgit_directory():
+    """Check if the directory (or its parent) has a .lgit directory.
 
-    def __check_lgit_path(path):
-        """Check lgit file if it's exists."""
-        if isfile(path):
-            print('fatal: invalid gitfile format: %s' % path)
-        elif isdir(path):
-            return True
-        return False
+    Returns: Full path of the directory that has .lgit directory in it.
 
-    if exists('.lgit'):
-        lgit_path = abspath('.lgit')
-        if __check_lgit_path(lgit_path):
-            return True
-    else:
-        parent_dir = dirname(getcwd())
-        lgit_parent = join(parent_dir, '.lgit')
-        if __check_lgit_path(lgit_parent):
-            return True
-    return False
+    """
+
+    current_path = getcwd()
+    for _ in range(2):  # Check 2 levels.
+        if isfile(current_path + '/.lgit'):
+            print('fatal: invalid gitfile format: %s/.lgit' % current_path)
+            exit()
+        if isdir(current_path + '/.lgit'):
+            return current_path
+        current_path = dirname(current_path)
+    return None
 
 
 def hashing_sha1_file(path_file):
@@ -110,18 +106,6 @@ def get_timestamp_of_current_time():
     timestamp = current_time.strftime('%Y%m%d%H%M%S')
     ms_timestamp = current_time.strftime('%Y%m%d%H%M%S.%f')
     return timestamp, ms_timestamp
-
-
-def check_command_error(command):
-    """Check if lgit init have been done yet.
-
-    Args:
-        command: This is the command you typed.
-    """
-    if command != 'init' and not check_lgit_exist():
-        print('fatal: not a git repository (or any of the parent directories)')
-        return True
-    return False
 
 
 def copy_file_to_another(source, destination):
