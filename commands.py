@@ -1,10 +1,11 @@
 """Present commands in lgit program."""
-from os import environ, _exit, unlink
+from os import environ, _exit, unlink, listdir
 from os.path import exists, isfile, isdir, abspath
 
 from functions import (make_directory, create_file, read_file,
-                       copy_file_to_another, format_mtime, get_files_in_dir,
-                       hashing_sha1_file, get_timestamp_of_current_time)
+                       copy_file_to_another, format_mtime, get_files_skip_lgit,
+                       hashing_sha1_file, get_timestamp_of_current_time,
+                       get_readable_date)
 
 
 def execute_lgit_init():
@@ -30,8 +31,7 @@ def execute_lgit_init():
             config.write(environ['LOGNAME'])
 
     if exists('.lgit'):
-        print(
-            "Reinitialized existing Git repository in %s/" % abspath('.lgit'))
+        print("Git repository already initialized.")
     else:
         print("Initialized empty Git repository in %s/" % abspath('.lgit'))
     _create_lgit_folders()
@@ -71,13 +71,13 @@ def execute_lgit_add(args):
 
     file_paths = []
     if '.' in args.files or '*' in args.files:
-        file_paths = get_files_in_dir('.')
+        file_paths = get_files_skip_lgit()
     else:
         for path in args.files:
             if isfile(path):
                 file_paths.append(path)
             else:
-                file_paths.extend(get_files_in_dir(path))
+                file_paths.extend(get_files_skip_lgit(path))
 
     for path in file_paths:
         sha1_value = hashing_sha1_file(path)
@@ -95,7 +95,7 @@ def execute_lgit_rm(args):
             a_file: The tracked file.
 
         Returns:
-            Boolean (True/False): if a_file exist in the index file.
+            True/False: if a_file exist in the index file.
 
         """
         with open('.lgit/index', 'r+') as index:
@@ -145,6 +145,7 @@ def execute_lgit_commit(args):
 
     def _create_commit_object(message):
         """Create the commit object when commit the changes."""
+
         # Get the author name for the commits:
         author = read_file('.lgit/config').strip('\n')
         # If the config file is empty:
@@ -162,7 +163,10 @@ def execute_lgit_commit(args):
             commit.write('%s\n%s\n\n%s\n\n' % (author, timestamp_now, message))
 
     def _update_index_and_snapshot():
-        with open('.lgit/index', 'rb+') as index, open('.lgit/snapshots/%s' % ms_timestamp_now, 'ab+') as snapshot:
+        """Update the index file and create snapshots."""
+
+        with open('.lgit/index', 'rb+') as index, open(
+                '.lgit/snapshots/%s' % ms_timestamp_now, 'ab+') as snapshot:
             content_index = index.readlines()
             index.seek(0)
             for line in content_index:
@@ -179,14 +183,122 @@ def execute_lgit_commit(args):
 
 def display_lgit_status(args):
     """Show the working tree status."""
-    pass
+
+    def _print_status_header():
+        """Print the header of the status."""
+        print('On branch master')
+        # If the command commit has been never called:
+        if not listdir('.lgit/commits'):
+            print('\nNo commits yet\n')
+
+    def _report_changes_to_be_committed(files):
+        """Print information about changes to be committed."""
+        print('Changes to be committed:')
+        print('  (use "./lgit.py reset HEAD ..." to unstage)\n')
+        for file in files:
+            print('\tmodified:', file)
+        print()
+
+    def _report_changes_not_staged_for_commit(files):
+        """Print information about changes not staged for commit."""
+        print('Changes not staged for commit:')
+        print('  (use "./lgit.py add ..." to update what will be committed)')
+        print(
+            '  (use "./lgit.py checkout -- ..." to discard changes in working directory)\n'
+        )
+        for file in files:
+            print('\tmodified:', file)
+        print(
+            '\nno changes added to commit (use "./lgit.py add and/or "./lgit.py commit -a")'
+        )
+
+    def _report_untracked_files(files):
+        """Report the untracked files when call the status command.
+
+        Args:
+            files: The files that are present in the working in the working directory,
+                but have never been lgit add'ed.
+
+        """
+
+        print('Untracked files:')
+        print(
+            '  (use "./lgit.py add ..." to include in what will be committed)\n'
+        )
+        for file in files:
+            print('\t' + file)
+        print()
+        # print('nothing added to commit but untracked files present
+        # (use "./lgit.py add" to track)')
+
+    def _update_index(file):
+        """Update the index of the file in the working directory."""
+        content_index = read_file('.lgit/index').split('\n')
+        hash_value = hashing_sha1_file(file)
+        timestamp, _ = get_timestamp_of_current_time()
+        with open('.lgit/index', 'rb+') as index:
+            current_line = None
+            for line in content_index:
+                if line[138:] == file:
+                    current_line = '%s %s %s' % (timestamp, hash_value,
+                                                 line[56:])
+                    index.write((timestamp + ' ' + hash_value).encode())
+                    break
+                else:
+                    index.seek(len(line) + 1, 1)
+        return current_line
+
+    def _classify_files():
+        """Classify files in the working directory."""
+        list_files = get_files_skip_lgit()
+        untracked_files = []
+        files_to_be_committed = []
+        files_not_staged_for_commit = []
+        for file in list_files:
+            info_file = _update_index(file)
+            if info_file:
+                if info_file[56:96] != info_file[15:55]:
+                    files_not_staged_for_commit.append(file)
+                if info_file[97:137] != info_file[56:96]:
+                    files_to_be_committed.append(file)
+            else:
+                untracked_files.append(file)
+        return untracked_files, files_to_be_committed, files_not_staged_for_commit
+
+    _print_status_header()
+    untracked, to_be_committed, not_staged_for_commit = _classify_files()
+    if to_be_committed:
+        _report_changes_to_be_committed(to_be_committed)
+    if not_staged_for_commit:
+        _report_changes_not_staged_for_commit(not_staged_for_commit)
+    if untracked:
+        _report_untracked_files(untracked)
 
 
 def list_lgit_files(args):
     """Show information about files in the index and the working tree."""
-    pass
+
+    content_index = read_file('.lgit/index').split('\n')
+    list_files = []
+    for line in content_index:
+        list_files.append(line[138:])
+    for file in sorted(list_files):
+        if file != '':
+            print(file)
 
 
 def show_lgit_log(args):
     """Show the commit history."""
-    pass
+
+    def _display_commit(file):
+        """Display each commit."""
+        content = read_file('.lgit/commits/%s' % file).split('\n')
+        print('commit ' + file)
+        print('Author: ' + content[0])
+        print('Date: ' + get_readable_date(file), end='\n\n')
+        print('    %s\n' % content[3])
+
+    list_commits = listdir('.lgit/commits')
+    list_commits.sort(reverse=True)
+    for commit in list_commits:
+        _display_commit(commit)

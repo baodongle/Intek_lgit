@@ -2,7 +2,7 @@
 from datetime import datetime
 from hashlib import sha1
 from os import getcwd, makedirs, walk
-from os.path import exists, isdir, isfile, abspath, dirname, join, getmtime
+from os.path import exists, isdir, isfile, abspath, dirname, join, getmtime, relpath
 
 BUF_SIZE = 65536  # Let's read stuff in 64Kb chunks!
 
@@ -50,7 +50,7 @@ def check_lgit_exist():
     def __check_lgit_path(path):
         """Check lgit file if it's exists."""
         if isfile(path):
-            print('fatal: invalid gitfile format: {}'.format(path))
+            print('fatal: invalid gitfile format: %s' % path)
         elif isdir(path):
             return True
         return False
@@ -134,27 +134,48 @@ def copy_file_to_another(source, destination):
             dst.write(data)
 
 
-def get_files_in_dir(directory):
+def get_files_skip_lgit(directory='.'):
     """ Get all files in a directory.
 
     This function will generate the file names in a directory
-    tree by walking the tree either top-down or bottom-up. For each
-    directory in the tree rooted at directory top (including top itself),
+    tree by walking the tree either top-down. For each directory
+    in the tree rooted at directory top (including top itself),
     it yields a 3-tuple (dirpath, dirnames, filenames).
 
     Args:
         directory: The directory tree to get files.
 
     Returns:
-        The list of file in a directory tree.
+        The list of file in a directory tree (skip .lgit directory).
     """
-    file_paths = []  # List which will store all of the full filepath.
+    file_paths = []  # List which will store all of the relative filepath.
 
     # Walk the tree.
-    for root, _, files in walk(directory):
-        for filename in files:
-            # Join the two strings in order to form the full filepath.
-            filepath = join(root, filename)
-            file_paths.append(filepath)  # Add it to the list.
+    for root, dirs, files in walk(directory, topdown=True):
+        dirs[:] = [d for d in dirs if d != '.lgit']
+        for file_name in files:
+            rel_dir = relpath(root, directory)
+            if rel_dir == '.':
+                rel_file = file_name
+            else:
+                # Join the two strings in order to form the relative filepath:
+                rel_file = join(rel_dir, file_name)
+            file_paths.append(rel_file)  # Add it to the list.
+    return sorted(file_paths)  # Self-explanatory.
 
-    return file_paths  # Self-explanatory.
+
+def get_readable_date(timestamp):
+    """Format the timestamp to a human-readable date.
+
+    Args:
+        timestamp: The timestamp with milliseconds.
+
+    """
+    year = int(timestamp[:4])
+    month = int(timestamp[4:6])
+    day = int(timestamp[6:8])
+    hour = int(timestamp[8:10])
+    minute = int(timestamp[10:12])
+    second = int(timestamp[12:14])
+    return datetime(year, month, day, hour, minute,
+                    second).strftime('%a %b %d %H:%M:%S %Y')
