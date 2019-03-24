@@ -1,10 +1,11 @@
 """Present commands in lgit program."""
-from os import environ, unlink, listdir
-from os.path import exists, isfile, isdir
+from os import environ, listdir, stat, unlink
+from os.path import exists, isdir, isfile
 
-from functions import (make_directory, read_file, copy_file_to_another,
-                       format_mtime, get_files_skip_lgit, hashing_sha1_file,
-                       get_timestamp_of_current_time, get_readable_date)
+from functions import (copy_file_to_another, format_mtime, get_current_branch,
+                       get_files_skip_lgit, get_readable_date,
+                       get_timestamp_of_current_time, hashing_sha1_file,
+                       make_directory, read_file)
 
 
 def execute_lgit_init():
@@ -13,7 +14,8 @@ def execute_lgit_init():
     def _create_lgit_folders():
         """Create directories in .lgit structure."""
         lgit_folders = [
-            '.lgit', '.lgit/objects', '.lgit/commits', '.lgit/snapshots'
+            '.lgit', '.lgit/objects', '.lgit/commits', '.lgit/snapshots',
+            '.lgit/refs', '.lgit/refs/heads'
         ]
         for folder in lgit_folders:
             make_directory(folder)
@@ -34,11 +36,20 @@ def execute_lgit_init():
         except (PermissionError, FileNotFoundError):
             pass
 
+    def _init_head():
+        """Create lgit's HEAD file."""
+        try:
+            with open('.lgit/HEAD', 'w') as head:
+                head.write('ref: refs/heads/master')
+        except (PermissionError, FileNotFoundError):
+            pass
+
     if exists('.lgit'):
         print("Git repository already initialized.")
     _create_lgit_folders()
     _create_index_files()
     _init_config()
+    _init_head()
 
 
 def execute_lgit_add(args, lgit_path):
@@ -85,7 +96,6 @@ def execute_lgit_add(args, lgit_path):
                 file_paths.extend(get_files_skip_lgit(file))
 
     for file_path in file_paths:
-        print(file_path)
         sha1_value = hashing_sha1_file(file_path)
         _add_file_to_lgit_database(file_path, sha1_value)
         _update_index(file_path, sha1_value)
@@ -178,8 +188,23 @@ def execute_lgit_commit(args, lgit_path):
         except PermissionError:
             pass
 
-    _create_commit_object(args.m)
-    _update_index_and_snapshot()
+    def _update_branch_head():
+        """Update the head of the current branch."""
+        branch = get_current_branch(lgit_path + '/.lgit/HEAD')
+        try:
+            with open(lgit_path + '/.lgit/refs/heads/%s' % branch,
+                      'w') as file:
+                file.write(ms_timestamp_now)
+        except PermissionError:
+            pass
+
+    # If the command 'add' has been never called:
+    if not stat(lgit_path + '/.lgit/index').st_size:
+        display_lgit_status(args, lgit_path)  # Show untracked files.
+    else:
+        _create_commit_object(args.m)
+        _update_index_and_snapshot()
+        _update_branch_head()
 
 
 def display_lgit_status(args, lgit_path):
@@ -188,8 +213,13 @@ def display_lgit_status(args, lgit_path):
     def _print_status_header():
         """Print the header of the status."""
         print('On branch master')
-        # If the command commit has been never called:
-        if not listdir(lgit_path + '/.lgit/commits'):
+        # If the command 'add' has been never called:
+        if args.command == 'commit' and not stat(lgit_path +
+                                                 '/.lgit/index').st_size:
+            print('\nInitial commit\n')
+        # If the command 'commit' has been never called:
+        if args.command == 'status' and not listdir(lgit_path +
+                                                    '/.lgit/commits'):
             print('\nNo commits yet\n')
 
     def _report_changes_to_be_committed(files):
@@ -204,12 +234,13 @@ def display_lgit_status(args, lgit_path):
         """Print information about changes not staged for commit."""
         print('Changes not staged for commit:')
         print('  (use "./lgit.py add ..." to update what will be committed)')
-        print('''  (use "./lgit.py checkout -- ..." to discard changes in
-            working directory)\n''')
+        print('  (use "./lgit.py checkout -- ..." to discard changes in '
+              'working directory)\n')
         for file in files:
             print('\tmodified:', file)
-        print('''\nno changes added to commit (use "./lgit.py add and/or
-            "./lgit.py commit -a")''')
+        print()
+        # print('no changes added to commit (use "./lgit.py add and/or '
+        #       '"./lgit.py commit -a")')
 
     def _report_untracked_files(files):
         """Report the untracked files when call the status command.
@@ -226,9 +257,8 @@ def display_lgit_status(args, lgit_path):
             end='\n\n')
         for file in files:
             print('\t' + file)
-        print()
-        # print('nothing added to commit but untracked files present
-        # (use "./lgit.py add" to track)')
+        print('\nnothing added to commit but untracked files present (use '
+              '"./lgit.py add" to track)')
 
     def _update_index(file):
         """Update the index of the file in the working directory.
@@ -283,6 +313,7 @@ def display_lgit_status(args, lgit_path):
 
 def list_lgit_files(args, lgit_path):
     """Show information about files in the index and the working tree."""
+
     content_index = read_file(lgit_path + '/.lgit/index').split('\n')
     list_files = []
     for line in content_index:

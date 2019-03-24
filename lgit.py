@@ -2,8 +2,10 @@
 """Code a lightweight version of git."""
 from argparse import ArgumentParser
 
-from commands import (execute_lgit_init, execute_lgit_add, execute_lgit_rm,
-                      config_lgit, execute_lgit_commit, display_lgit_status,
+from branches import (execute_lgit_branch, execute_lgit_checkout,
+                      execute_lgit_merge, execute_lgit_stash)
+from commands import (config_lgit, display_lgit_status, execute_lgit_add,
+                      execute_lgit_commit, execute_lgit_init, execute_lgit_rm,
                       list_lgit_files, show_lgit_log)
 from functions import find_lgit_directory
 
@@ -14,7 +16,8 @@ def parse_arguments():
     parser = ArgumentParser()
     subparsers = parser.add_subparsers(
         title='These are common lgit commands used',
-        dest='command', metavar='<command> [<args>]')
+        dest='command',
+        metavar='<command> [<args>]')
 
     # Create the parser for the "init" command
     subparsers.add_parser('init')
@@ -44,6 +47,21 @@ def parse_arguments():
     # Create the parser for the "log" command
     subparsers.add_parser('log')
 
+    # Create the parser for the "branch" command
+    branch_parser = subparsers.add_parser('branch')
+    branch_parser.add_argument('branch_name', type=str, nargs='?')
+
+    # Create the parser for the "checkout" command
+    checkout_parser = subparsers.add_parser('checkout')
+    checkout_parser.add_argument(
+        'branch_name', type=str, nargs='?', default='master')
+
+    # Create the parser for the "merge" command
+    subparsers.add_parser('merge')
+
+    # Create the parser for the "stash" command
+    subparsers.add_parser('stash')
+
     return parser.parse_args()
 
 
@@ -62,7 +80,11 @@ def main():
             "commit": execute_lgit_commit,
             "status": display_lgit_status,
             "ls-files": list_lgit_files,
-            "log": show_lgit_log
+            "log": show_lgit_log,
+            "branch": execute_lgit_branch,
+            "checkout": execute_lgit_checkout,
+            "merge": execute_lgit_merge,
+            "stash": execute_lgit_stash
         }
         # Get the function from switcher dictionary:
         switcher[args.command](args, lgit_path)
