@@ -52,9 +52,9 @@ def parse_arguments():
     branch_parser.add_argument('branch_name', type=str, nargs='?')
 
     # Create the parser for the "checkout" command
-    subparsers.add_parser('checkout')
-    branch_parser.add_argument('branch_name', type=str, nargs='?',
-                               default='master')
+    checkout_parser = subparsers.add_parser('checkout')
+    checkout_parser.add_argument(
+        'branch_name', type=str, nargs='?', default='master')
 
     # Create the parser for the "merge" command
     subparsers.add_parser('merge')

@@ -37,6 +37,15 @@ def make_directory(dir_path):
         pass
 
 
+def write_file(file_name, content):
+    """Write the content into a file."""
+    try:
+        with open(file_name, 'w') as file:
+            file.write(content)
+    except PermissionError:
+        pass
+
+
 def find_lgit_directory():
     """Check if the directory (or its parent) has a .lgit directory.
 
