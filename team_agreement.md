@@ -4,6 +4,7 @@
 4. The strengths and weaknesses of each member:
 
   -  lbaodong:
+  
     * Strengths:
     + High level coding skills
     + Good logical thinking and solving problems
@@ -14,6 +15,7 @@
     + 
 
   -  nhuong:
+  
     * Strengths:
     + Good adaption and learning
     + Friendly and hard-working
@@ -25,7 +27,7 @@
 
 5. The allocation of the workload: 
 6. Strategy for all to understand the codebase:
-- Try to name the variables easy to understand.
-- Have comments for each function and small comments for code lines.
-- Asking and explain to each other when there're problems in understanding.
+    - Try to name the variables easy to understand.
+    - Have comments for each function and small comments for code lines.
+    - Asking and explain to each other when there're problems in understanding.
 

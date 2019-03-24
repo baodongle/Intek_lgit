@@ -1,11 +1,10 @@
 """Present commands in lgit program."""
 from os import environ, unlink, listdir
-from os.path import exists, isfile, isdir, abspath
+from os.path import exists, isfile, isdir
 
-from functions import (make_directory, create_file, read_file,
-                       copy_file_to_another, format_mtime, get_files_skip_lgit,
-                       hashing_sha1_file, get_timestamp_of_current_time,
-                       get_readable_date)
+from functions import (make_directory, read_file, copy_file_to_another,
+                       format_mtime, get_files_skip_lgit, hashing_sha1_file,
+                       get_timestamp_of_current_time, get_readable_date)
 
 
 def execute_lgit_init():
@@ -19,23 +18,26 @@ def execute_lgit_init():
         for folder in lgit_folders:
             make_directory(folder)
 
-    def _create_lgit_files():
-        """Create files in .lgit structure."""
-        lgit_files = ['.lgit/index', '.lgit/config']
-        for file in lgit_files:
-            create_file(file)
+    def _create_index_files():
+        """Create lgit's index file."""
+        try:
+            with open('.lgit/index', 'w'):
+                pass
+        except PermissionError:
+            pass
 
     def _init_config():
         """Initialize the name of the author in the file config."""
-        with open('.lgit/config', 'w') as config:
-            config.write(environ['LOGNAME'])
+        try:
+            with open('.lgit/config', 'w') as config:
+                config.write(environ['LOGNAME'])
+        except (PermissionError, FileNotFoundError):
+            pass
 
     if exists('.lgit'):
         print("Git repository already initialized.")
-    else:
-        print("Initialized empty Git repository in %s/" % abspath('.lgit'))
     _create_lgit_folders()
-    _create_lgit_files()
+    _create_index_files()
     _init_config()
 
 
@@ -51,23 +53,26 @@ def execute_lgit_add(args, lgit_path):
     def _update_index(a_file, hash_value):
         """Update the file information in the index file."""
         timestamp = format_mtime(a_file)
-        with open(lgit_path + '/.lgit/index', 'rb+') as index:
-            content_index = index.readlines()
-            index.seek(0)
-            added = False
-            for line in content_index:
-                if line.endswith((a_file + '\n').encode()):
-                    index.write(timestamp.encode())
-                    index.seek(42, 1)
-                    index.write(hash_value.encode())
-                    added = True
-                else:
-                    index.seek(len(line), 1)
-            if not added:
-                empty_hash = ' ' * 40
-                line_index = '%s %s %s %s %s\n' % (
-                    timestamp, hash_value, hash_value, empty_hash, a_file)
-                index.write(line_index.encode())
+        try:
+            with open(lgit_path + '/.lgit/index', 'rb+') as index:
+                content_index = index.readlines()
+                index.seek(0)
+                added = False
+                for line in content_index:
+                    if line.endswith((a_file + '\n').encode()):
+                        index.write(timestamp.encode())
+                        index.seek(42, 1)
+                        index.write(hash_value.encode())
+                        added = True
+                    else:
+                        index.seek(len(line), 1)
+                if not added:
+                    empty_hash = ' ' * 40
+                    line_index = '%s %s %s %s %s\n' % (
+                        timestamp, hash_value, hash_value, empty_hash, a_file)
+                    index.write(line_index.encode())
+        except PermissionError:
+            pass
 
     file_paths = []
     if '.' in args.files or '*' in args.files:
@@ -76,10 +81,11 @@ def execute_lgit_add(args, lgit_path):
         for file in args.files:
             if isfile(file):
                 file_paths.append(file)
-            else:
+            elif isdir(file):
                 file_paths.extend(get_files_skip_lgit(file))
 
     for file_path in file_paths:
+        print(file_path)
         sha1_value = hashing_sha1_file(file_path)
         _add_file_to_lgit_database(file_path, sha1_value)
         _update_index(file_path, sha1_value)
@@ -98,36 +104,39 @@ def execute_lgit_rm(args, lgit_path):
             True/False: if a_file exist in the index file.
 
         """
-        with open(lgit_path + '/.lgit/index', 'r+') as index:
-            contents = index.readlines()
-            had_file = False
-            for line in contents:
-                if line.endswith(a_file + '\n'):
-                    contents.remove(line)
-                    had_file = True
-            index.truncate(0)
-            index.write(''.join(contents))
-        return had_file
+        try:
+            with open(lgit_path + '/.lgit/index', 'r+') as index:
+                contents = index.readlines()
+                had_file = False
+                for line in contents:
+                    if line.endswith(a_file + '\n'):
+                        contents.remove(line)
+                        had_file = True
+                index.truncate(0)
+                index.write(''.join(contents))
+            return had_file
+        except (PermissionError, FileNotFoundError):
+            pass
 
     for file in args.files:
         if isdir(file):
-            print("fatal: not removing '%s' recursively" % file)
-            exit()
+            exit("fatal: not removing '%s' recursively" % file)
         if exists(file):
             if _remove_file_index(file):
                 unlink(file)
             else:
-                print("fatal: pathspec '%s' did not match any files" % file)
-                exit()
+                exit("fatal: pathspec '%s' did not match any files" % file)
         else:
-            print("fatal: pathspec '%s' did not match any files" % file)
-            exit()
+            exit("fatal: pathspec '%s' did not match any files" % file)
 
 
 def config_lgit(args, lgit_path):
     """Set a user for authoring the commits."""
-    with open(lgit_path + '/.lgit/config', 'w') as config:
-        config.write(args.author + '\n')
+    try:
+        with open(lgit_path + '/.lgit/config', 'w') as config:
+            config.write(args.author + '\n')
+    except PermissionError:
+        pass
 
 
 def execute_lgit_commit(args, lgit_path):
@@ -141,34 +150,33 @@ def execute_lgit_commit(args, lgit_path):
         author = read_file(lgit_path + '/.lgit/config').strip('\n')
         # If the config file is empty:
         if not author:
-            print('''***Please tell me who you are.
-            
-            Run
-            
-            ./lgit.py config --author "Author Name"
-            
-            to set a user for authoring the commits.''')
-
-        with open(lgit_path + '/.lgit/commits/%s' % ms_timestamp_now,
-                  'w') as commit:
-            # Write file in the commits directory:
-            commit.write('%s\n%s\n\n%s\n\n' % (author, timestamp_now, message))
+            exit()
+        try:
+            with open(lgit_path + '/.lgit/commits/%s' % ms_timestamp_now,
+                      'w') as commit:
+                # Write file in the commits directory:
+                commit.write(
+                    '%s\n%s\n\n%s\n\n' % (author, timestamp_now, message))
+        except PermissionError:
+            pass
 
     def _update_index_and_snapshot():
         """Update the index file and create snapshots."""
-
-        with open(lgit_path + '/.lgit/index', 'rb+') as index, open(
-                lgit_path + '/.lgit/snapshots/%s' % ms_timestamp_now,
-                'ab+') as snapshot:
-            content_index = index.readlines()
-            index.seek(0)
-            for line in content_index:
-                hash_value = line[56:96]
-                file_path = line[138:]
-                snapshot.write(hash_value + b' ' + file_path)
-                index.seek(97, 1)
-                index.write(hash_value)
-                index.seek(len(line) - 137, 1)
+        try:
+            with open(lgit_path + '/.lgit/index', 'rb+') as index, open(
+                    lgit_path + '/.lgit/snapshots/%s' % ms_timestamp_now,
+                    'ab+') as snapshot:
+                content_index = index.readlines()
+                index.seek(0)
+                for line in content_index:
+                    hash_value = line[56:96]
+                    file_path = line[138:]
+                    snapshot.write(hash_value + b' ' + file_path)
+                    index.seek(97, 1)
+                    index.write(hash_value)
+                    index.seek(len(line) - 137, 1)
+        except PermissionError:
+            pass
 
     _create_commit_object(args.m)
     _update_index_and_snapshot()
@@ -196,28 +204,26 @@ def display_lgit_status(args, lgit_path):
         """Print information about changes not staged for commit."""
         print('Changes not staged for commit:')
         print('  (use "./lgit.py add ..." to update what will be committed)')
-        print(
-            '  (use "./lgit.py checkout -- ..." to discard changes in working directory)\n'
-        )
+        print('''  (use "./lgit.py checkout -- ..." to discard changes in
+            working directory)\n''')
         for file in files:
             print('\tmodified:', file)
-        print(
-            '\nno changes added to commit (use "./lgit.py add and/or "./lgit.py commit -a")'
-        )
+        print('''\nno changes added to commit (use "./lgit.py add and/or
+            "./lgit.py commit -a")''')
 
     def _report_untracked_files(files):
         """Report the untracked files when call the status command.
 
         Args:
-            files: The files that are present in the working in the working directory,
-                but have never been lgit add'ed.
+            files: The files that are present in the working in the working
+                directory, but have never been lgit add'ed.
 
         """
 
         print('Untracked files:')
         print(
-            '  (use "./lgit.py add ..." to include in what will be committed)\n'
-        )
+            '  (use "./lgit.py add ..." to include in what will be committed)',
+            end='\n\n')
         for file in files:
             print('\t' + file)
         print()
@@ -225,24 +231,30 @@ def display_lgit_status(args, lgit_path):
         # (use "./lgit.py add" to track)')
 
     def _update_index(file):
-        """Update the index of the file in the working directory."""
+        """Update the index of the file in the working directory.
+
+        Returns: Index of line that contains the information of file.
+        """
         content_index = read_file(lgit_path + '/.lgit/index').split('\n')
         hash_value = hashing_sha1_file(file)
         timestamp, _ = get_timestamp_of_current_time()
-        with open(lgit_path + '/.lgit/index', 'rb+') as index:
-            current_line = None
-            for line in content_index:
-                if line[138:] == file:
-                    current_line = '%s %s %s' % (timestamp, hash_value,
-                                                 line[56:])
-                    index.write((timestamp + ' ' + hash_value).encode())
-                    break
-                else:
-                    index.seek(len(line) + 1, 1)
-        return current_line
+        try:
+            with open(lgit_path + '/.lgit/index', 'rb+') as index:
+                current_line = None
+                for line in content_index:
+                    if line[138:] == file:
+                        current_line = '%s %s %s' % (timestamp, hash_value,
+                                                     line[56:])
+                        index.write((timestamp + ' ' + hash_value).encode())
+                        break
+                    else:
+                        index.seek(len(line) + 1, 1)
+            return current_line
+        except PermissionError:
+            pass
 
     def _classify_files():
-        """Classify files in the working directory."""
+        """Classify files in the working directory to 3 groups."""
         list_files = get_files_skip_lgit()
         untracked_files = []
         files_to_be_committed = []
@@ -256,7 +268,8 @@ def display_lgit_status(args, lgit_path):
                     files_to_be_committed.append(file)
             else:
                 untracked_files.append(file)
-        return untracked_files, files_to_be_committed, files_not_staged_for_commit
+        return (untracked_files, files_to_be_committed,
+                files_not_staged_for_commit)
 
     _print_status_header()
     untracked, to_be_committed, not_staged_for_commit = _classify_files()
@@ -270,7 +283,6 @@ def display_lgit_status(args, lgit_path):
 
 def list_lgit_files(args, lgit_path):
     """Show information about files in the index and the working tree."""
-
     content_index = read_file(lgit_path + '/.lgit/index').split('\n')
     list_files = []
     for line in content_index:

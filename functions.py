@@ -2,20 +2,9 @@
 from datetime import datetime
 from hashlib import sha1
 from os import getcwd, makedirs, walk
-from os.path import exists, isdir, isfile, dirname, join, getmtime, relpath
+from os.path import isdir, isfile, dirname, join, getmtime, relpath
 
 BUF_SIZE = 65536  # Let's read stuff in 64Kb chunks!
-
-
-def create_file(file_path):
-    """Create a file if it doesn't exist.
-
-    Args:
-        file_path: This is the file to be created.
-    """
-    if not exists(file_path):
-        with open(file_path, 'w'):
-            pass
 
 
 def read_file(file_name):
@@ -27,9 +16,12 @@ def read_file(file_name):
     Returns: The contents of file.
 
     """
-    with open(file_name, 'r') as file:
-        content = file.read()
-    return content
+    try:
+        with open(file_name, 'r') as file:
+            content = file.read()
+        return content
+    except (PermissionError, FileNotFoundError):
+        pass
 
 
 def make_directory(dir_path):
@@ -55,8 +47,7 @@ def find_lgit_directory():
     current_path = getcwd()
     for _ in range(2):  # Check 2 levels.
         if isfile(current_path + '/.lgit'):
-            print('fatal: invalid gitfile format: %s/.lgit' % current_path)
-            exit()
+            exit('fatal: invalid gitfile format: %s/.lgit' % current_path)
         if isdir(current_path + '/.lgit'):
             return current_path
         current_path = dirname(current_path)
@@ -71,13 +62,16 @@ def hashing_sha1_file(path_file):
     """
     # First construct a hash object:
     sha1_hash = sha1()
-    with open(path_file, 'rb') as file:
-        while True:
-            data = file.read(BUF_SIZE)
-            if not data:  # end of file reached
-                break
-            sha1_hash.update(data)
-    return sha1_hash.hexdigest()
+    try:
+        with open(path_file, 'rb') as file:
+            while True:
+                data = file.read(BUF_SIZE)
+                if not data:  # end of file reached
+                    break
+                sha1_hash.update(data)
+        return sha1_hash.hexdigest()
+    except (PermissionError, FileNotFoundError):
+        pass
 
 
 def format_mtime(path_file):
@@ -98,8 +92,9 @@ def get_timestamp_of_current_time():
     """Get the timestamp of the current time.
 
     Returns:
-        timestamp: The timestamp represent year, month, day, hour, minute and second..
-        ms_timestamp: The timestamp to milliseconds.
+        timestamp:      The timestamp represent year, month, day, hour, minute
+                            and second.
+        ms_timestamp:   The timestamp to milliseconds.
 
     """
     current_time = datetime.now()
@@ -110,12 +105,15 @@ def get_timestamp_of_current_time():
 
 def copy_file_to_another(source, destination):
     """Copy the contents of source file to destination."""
-    with open(source, 'rb') as src, open(destination, 'wb+') as dst:
-        while True:
-            data = src.read(BUF_SIZE)
-            if not data:  # end of file reached
-                break
-            dst.write(data)
+    try:
+        with open(source, 'rb') as src, open(destination, 'wb+') as dst:
+            while True:
+                data = src.read(BUF_SIZE)
+                if not data:  # end of file reached
+                    break
+                dst.write(data)
+    except (PermissionError, FileNotFoundError):
+        pass
 
 
 def get_files_skip_lgit(directory='.'):
@@ -163,3 +161,12 @@ def get_readable_date(timestamp):
     second = int(timestamp[12:14])
     return datetime(year, month, day, hour, minute,
                     second).strftime('%a %b %d %H:%M:%S %Y')
+
+
+def get_current_branch(head_file):
+    """Get the current lgit branch from head_file
+
+    Returns: Name of the current lgit branch.
+    """
+    content_head = read_file(head_file)
+    return content_head.strip('\n').split('/')[-1]
