@@ -25,7 +25,12 @@
         + Low knowledge in coding
         + 
 
-5. The allocation of the workload: 
+5. The allocation of the workload:
+
+	- lbaodong: add, commit, rm, status, log, branch, checkout
+
+	- nhuong: init, ls-files, config
+ 
 6. Strategy for all to understand the codebase:
     - Try to name the variables easy to understand.
     - Have comments for each function and small comments for code lines.

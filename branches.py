@@ -10,6 +10,7 @@ def execute_lgit_branch(args, lgit_path):
     """List or create branches."""
 
     def _create_branch(name):
+        """Create a new branch."""
         # If branch name exists:
         if exists(lgit_path + '/.lgit/refs/heads/' + name):
             exit("fatal: A branch named '%s' already exists." % name)
@@ -20,6 +21,7 @@ def execute_lgit_branch(args, lgit_path):
                 branch.write(max(snapshots))
 
     def _list_branches():
+        """List all existing branches."""
         branch = get_current_branch(lgit_path + '/.lgit/HEAD')
         for file in sorted(listdir(lgit_path + '/.lgit/refs/heads')):
             if file == branch:
@@ -40,6 +42,7 @@ def execute_lgit_checkout(args, lgit_path):
     """Switch branches or restore working tree files."""
 
     def _report_error(list_file):
+        """Print error with the files would be overwitten."""
         print('''error: Your local changes to the following files would be
         overwritten by checkout:''')
         for file_name in list_file:
@@ -63,6 +66,7 @@ def execute_lgit_checkout(args, lgit_path):
                 pass
 
     def _create_working_files(file_path, content):
+        """Create tree of working files."""
         # Create tree directory that the file in it:
         if '/' in file_path:
             parent_paths = file_path.split('/')[:-1]
@@ -72,6 +76,7 @@ def execute_lgit_checkout(args, lgit_path):
         write_file(file_path, content)
 
     def _setup_for_new_branch(commit):
+        """Create working files and rewrite index for the current branch."""
         new_content_index = ''
         content_snap = read_file(lgit_path +
                                  '/.lgit/snapshots/%s' % commit).split('\n')
@@ -86,6 +91,7 @@ def execute_lgit_checkout(args, lgit_path):
             write_file(lgit_path + '/.lgit/index', new_content_index)
 
     def _update_head_file(branch_name):
+        """Update the HEAD file with the branch_name"""
         content = 'ref: refs/head/%s' % branch_name
         write_file(lgit_path + '/.lgit/HEAD', content)
 

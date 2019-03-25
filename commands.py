@@ -1,11 +1,11 @@
 """Present commands in lgit program."""
 from os import environ, listdir, stat, unlink
-from os.path import exists, isdir, isfile
+from os.path import exists, isdir, isfile, join
 
 from functions import (copy_file_to_another, format_mtime, get_current_branch,
                        get_files_skip_lgit, get_readable_date,
                        get_timestamp_of_current_time, hashing_sha1_file,
-                       make_directory, read_file)
+                       make_directory, read_file, write_file)
 
 
 def execute_lgit_init():
@@ -70,12 +70,16 @@ def execute_lgit_add(args, lgit_path):
                 index.seek(0)
                 added = False
                 for line in content_index:
+                    # If the file was added:
                     if line.endswith((a_file + '\n').encode()):
+                        # Update field 1:
                         index.write(timestamp.encode())
+                        # Update field 2:
                         index.seek(42, 1)
                         index.write(hash_value.encode())
                         added = True
                     else:
+                        # Move the pointer to next line:
                         index.seek(len(line), 1)
                 if not added:
                     empty_hash = ' ' * 40
@@ -85,17 +89,30 @@ def execute_lgit_add(args, lgit_path):
         except PermissionError:
             pass
 
-    file_paths = []
-    if '.' in args.files or '*' in args.files:
-        file_paths = get_files_skip_lgit()
-    else:
-        for file in args.files:
-            if isfile(file):
-                file_paths.append(file)
-            elif isdir(file):
-                file_paths.extend(get_files_skip_lgit(file))
+    def _get_all_files_add(list_files):
+        """Get all files to add.
 
-    for file_path in file_paths:
+        Args:
+            list_files: List of file can be added.
+
+        Returns: List of files to add.
+
+        """
+        file_paths = []
+        if '.' in list_files or '*' in list_files:
+            file_paths = get_files_skip_lgit()
+        else:
+            for file in list_files:
+                if isfile(file):
+                    file_paths.append(file)
+                elif isdir(file):
+                    files_add_dir = get_files_skip_lgit(file)
+                    for path in files_add_dir:
+                        file_paths.append(join(file, path))
+        return file_paths
+
+    list_files_add = _get_all_files_add(args.files)
+    for file_path in list_files_add:
         sha1_value = hashing_sha1_file(file_path)
         _add_file_to_lgit_database(file_path, sha1_value)
         _update_index(file_path, sha1_value)
@@ -114,19 +131,15 @@ def execute_lgit_rm(args, lgit_path):
             True/False: if a_file exist in the index file.
 
         """
-        try:
-            with open(lgit_path + '/.lgit/index', 'r+') as index:
-                contents = index.readlines()
-                had_file = False
-                for line in contents:
-                    if line.endswith(a_file + '\n'):
-                        contents.remove(line)
-                        had_file = True
-                index.truncate(0)
-                index.write(''.join(contents))
-            return had_file
-        except (PermissionError, FileNotFoundError):
-            pass
+        content_index = read_file(lgit_path + '/.lgit/index').split('\n')
+        had_file = False
+        for line in content_index:
+            if line.endswith(a_file):
+                # Remove the index of file:
+                content_index.remove(line)
+                had_file = True
+        write_file(lgit_path + '/.lgit/index', '\n'.join(content_index))
+        return had_file
 
     for file in args.files:
         if isdir(file):
@@ -155,7 +168,6 @@ def execute_lgit_commit(args, lgit_path):
 
     def _create_commit_object(message):
         """Create the commit object when commit the changes."""
-
         # Get the author name for the commits:
         author = read_file(lgit_path + '/.lgit/config').strip('\n')
         # If the config file is empty:
@@ -181,9 +193,12 @@ def execute_lgit_commit(args, lgit_path):
                 for line in content_index:
                     hash_value = line[56:96]
                     file_path = line[138:]
+                    # Update the snapshot for the file:
                     snapshot.write(hash_value + b' ' + file_path)
+                    # Update the field 3:
                     index.seek(97, 1)
                     index.write(hash_value)
+                    # Move the pointer to next line:
                     index.seek(len(line) - 137, 1)
         except PermissionError:
             pass
@@ -250,7 +265,6 @@ def display_lgit_status(args, lgit_path):
                 directory, but have never been lgit add'ed.
 
         """
-
         print('Untracked files:')
         print(
             '  (use "./lgit.py add ..." to include in what will be committed)',
@@ -313,7 +327,6 @@ def display_lgit_status(args, lgit_path):
 
 def list_lgit_files(args, lgit_path):
     """Show information about files in the index and the working tree."""
-
     content_index = read_file(lgit_path + '/.lgit/index').split('\n')
     list_files = []
     for line in content_index:
